@@ -1,0 +1,21 @@
+---
+title: "Documentation"
+author: "Philipp Münker"
+date: "2025-05-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading Librarys 
+
+```{r,echo= TRUE, message=FALSE, error=FALSE}
+
+library(readxl) # zum einlesen von Excel Dateien 
+library(tidyverse) # Visualisierungen 
+source("R/models.R") # Unsere eigenen Modelle laden 
+```
+
+

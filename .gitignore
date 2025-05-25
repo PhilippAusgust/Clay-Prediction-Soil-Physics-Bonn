@@ -1,0 +1,24 @@
+# R
+.Rhistory
+.RData
+.Rproj.user/
+.Rproj.user
+*.Rproj
+
+# Python
+__pycache__/
+*.pyc
+
+# Daten
+*.csv
+*.xlsx
+data/
+output/
+
+# Sonstiges
+*.log
+*.tmp
+.DS_Store
+
+
+
