@@ -18,4 +18,296 @@ library(tidyverse) # Visualisierungen
 source("R/models.R") # Unsere eigenen Modelle laden 
 ```
 
+## Daten Vorbereiten 
+
+```{r, echo=T}
+
+path = "Data/Database.xlsx" # Pfad zur Datenbank 
+metainfo_path = "Data/MetaDataComplete.csv" # Pfand zur Metainfo 
+
+# 1. Daten einlesen
+# ---------------------------------------------------------
+# Excel-Datei einlesen
+
+df_datenbank = read_excel(path) # Datenbank
+df_metainformation = read.csv(metainfo_path) # Metainfo
+```
+Schauen wir und die eingelesenen Daten an. 
+Welche Namen haben die Spalten ? Wie sind die Dimensionen? Welche Variablentypen gibt es ?
+
+
+```{r, echo=T}
+# Database 
+names(df_datenbank) # zeigt alle Spaltennamen
+```
+
+
+```{r, echo=T}
+# Metainformationen 
+names(df_metainformation) # zeigt alle Spaltennamen
+```
+
+Jetzt können wir uns die Dimensionen beider Dataframes anschauen. 
+```{r, echo=T}
+
+print(dim(df_datenbank)) # dim datenbank (Zeilen, Spalten)
+print(dim(df_metainformation)) # dim datenbank (Zeilen, Spalten)
+```
+
+Als nächstes kann man prüfen, welche Sites sich in der Database und in den 
+Metainfos befindenn. 
+
+```{r, echo=T}
+
+print(unique(df_datenbank$Site)) # Sites Datenbank
+print(unique(df_metainformation$Location)) # Sites Metainfo 
+```
+Man sieht, dass die Metainfos einen Standort mehr enthalten, was aber nicht schlimm ist. Wir möchten später die Sites in unserer Datenbank um die Metainformationen erweitern. Wichtig ist nur, dass alle Sites in unserer Datenbank in der Metadatenbank repräsentiert sind. Das kann man auch leicht überprüfen. Wir verweden dazu einfach `setdiff()`. 
+
+```{r, echo=T}
+
+print(setdiff(unique(df_datenbank$Site),unique(df_metainformation$Location) )) # 
+```
+Hier kommt `character(0)` raus, was zeigt, dass in unserer Datenbank keine Site ist, die nicht in den Metainfos abgedeckt ist! 
+Jetzt bauen wir ein großes df zusammen. 
+
+
+```{r, echo=T}
+
+# 1. Metainformationen hinzufügen
+# ---------------------------------------------------------
+# Relevante Metadaten auswählen
+
+meta_ausgewählt = df_metainformation[, c(
+  "Location",
+  "AgeName",
+  "Portr_AGE",
+  "Portr_Petr",
+  "AgeOldest",
+  "AgeNewest",
+  "Era",
+  "District"
+)]
+
+
+df_mit_meta = merge(df_datenbank, meta_ausgewählt, 
+                     by.x = "Site", by.y = "Location", 
+                     all.x = TRUE)
+
+
+```
+Schauen wir uns von dem neuen Dataframe mal die Spaltennamen an. 
+
+```{r, echo=TRUE}
+
+names(df_mit_meta)
+
+```
+
+Im Weiteren müssen noch NAs bereinigt werden! 
+
+```{r, echo=TRUE}
+# 2. Analyse der fehlenden Werte
+# ---------------------------------------------------------
+# Gesamtzahl fehlender Werte
+
+print(paste("Gesamtzahl der NAs:", sum(is.na(df_mit_meta))))
+
+# Detaillierte Analyse fehlender Werte pro Spalte
+na_counts = sapply(df_mit_meta, function(x) sum(is.na(x)))
+na_summary = data.frame(
+  Spalte = names(na_counts),
+  Anzahl_NAs = na_counts
+)
+print("NA-Analyse pro Spalte:")
+print(na_summary[order(-na_summary$Anzahl_NAs), ])
+```
+
+
+```{r, echo=TRUE}
+
+# 3. Spalten entfernen
+# ---------------------------------------------------------
+# Bestimmte Spalten entfernen
+
+spalten_zu_entfernen = c("CaCO3_prozent", "CaCO3_class", 
+                          "Geologie_SP1", "Geologie_1_5Mio")
+df_mit_meta_pro = df_mit_meta[, -which(names(df_mit_meta) %in% spalten_zu_entfernen)]
+
+print("Entfernte Spalten:")
+print(spalten_zu_entfernen)
+print(paste("Finale Dimensionen:", paste(dim(df_mit_meta_pro), collapse=" x ")))
+```
+
+```{r, echo=TRUE}
+# 4. Überprüfung der finalen Daten
+# ---------------------------------------------------------
+# Überprüfen der fehlenden Werte im finalen Dataframe
+
+na_counts_final = sapply(df_mit_meta_pro, function(x) sum(is.na(x)))
+na_summary_final = data.frame(
+  Spalte = names(na_counts_final),
+  Anzahl_NAs = na_counts_final
+)
+print("NA-Analyse im finalen Dataframe:")
+print(na_summary_final[order(-na_summary_final$Anzahl_NAs), ])
+
+
+```
+
+
+```{r, echo=TRUE}
+# 5. clean_colnames funktion
+# ---------------------------------------------------------
+# 
+
+clean_colnames = function(x) {
+  x = gsub(" ", "_", x)  # Leerzeichen zu Unterstrich
+  x = gsub(",", "", x)   # Kommas entfernen
+  x = gsub("-", "_", x)  # Bindestriche zu Unterstrich
+  x = make.names(x, unique=TRUE)  # R-konforme Namen erstellen
+  x
+}
+
+```
+
+
+```{r, echo=TRUE}
+# 7. dummy variablen erzeugen 
+# ---------------------------------------------------------
+# 
+
+
+dummy = dummyVars(" ~ Geologie_1_5Mio_EU_Map + Geologie_1_5Mio_BGR + Geologie_SP2_Substrat + AgeName + Portr_Petr + Era + District", data = df_mit_meta_pro)
+geology_dummies = predict(dummy, df_mit_meta_pro)
+colnames(geology_dummies) = clean_colnames(colnames(geology_dummies))
+
+df_transformed = cbind(
+  df_mit_meta_pro[, c("Sand","Ton", "K_percent", "Th_ppm", "K_Th_Ratio", "TC_merged_cps")],  # numerische Spalten
+  geology_dummies  # One-Hot encoded Spalten
+)
+
+df_transformed[,c("Site","Labor-Nr Bobo_ID")] = df_mit_meta_pro[,c("Site","Labor-Nr Bobo_ID")]
+
+```
+
+Schauen wir uns jetzt das fertig zusammengebaute Dataframe an! 
+
+
+```{r, echo=TRUE}
+
+print(names(df_transformed)) #Spaltennamen 
+
+print(dim(df_transformed)) #Dimensionen  
+
+print(unique(df_transformed$Site)) #alle Sites 
+
+```
+
+
+## Pipeline 
+
+```{r, echo=TRUE}
+features =  c("K_percent",
+              "Th_ppm",
+              "K_Th_Ratio",
+              "TC_merged_cps",
+              colnames(geology_dummies)) # features festlegen 
+
+print(features[1:10]) # die ersten 10 anschauen 
+print(length(features)) # wie viele features hab ich ? 
+
+
+target = "Ton" # Zielvaribale festlegen  
+```
+Jetzt können wir auch schon damit beginnen unsere Pipeline zu erzeugen. 
+
+```{r, echo=T}
+
+str(df_transformed) # unsere Daten anschauen -> hier sind features und Target enthalten ! 
+
+```
+
+Jetzt erstellen wir zunächst ein modell auf allen Standorten mit einer klassischen 20/80 test/Trainaufteilung
+
+
+```{r, echo=TRUE}
+# Initialisiere die Pipeline 
+rf_pipeline = RandomForestPipeline_New$new(
+  data = df_transformed, 
+  target = target, 
+  features = features
+)
+
+# Ein paar checks 
+rf_pipeline$check_sites()
+rf_pipeline$features
+rf_pipeline$target
+
+#split
+rf_pipeline$split(test_site = 0.2)
+
+
+#train
+#(mtry = seq(1,length(features)
+rf_pipeline$train(cv_method = "repeatedcv",mtry = "efficient", cv_folds = 3, cv_repeats = 3)
+
+
+#pred
+rf_pipeline$predict()
+
+#evaluate 
+rf_pipeline$evaluate()
+
+
+#plot
+rf_pipeline$plot_results()
+
+
+```
+
+## Leave One Site Out 
+
+```{r,echo=T}
+
+
+results_rf_df = data.frame()
+df_obvervedVSpred = data.frame()
+
+loso = FALSE
+
+if(loso){
+
+for(site in unique(df_transformed$Site)) {
+  #Pipeline intialisieren:
+  rf_pipeline = RandomForestPipeline_New$new(data = df_transformed,
+                                             target = target,
+                                             features = features)
+  
+  rf_pipeline$split(test_site = site, split_method = "LOSO") # aktuelle site aus dem training auslassen
+  
+  rf_pipeline$train(
+    mtry = "efficient",
+    cv_method = "repeatedcv",
+    cv_folds = 3,
+    cv_repeats = 3
+  )  # modell trainieren
+  
+  rf_pipeline$predict() # vorhersage auf die aktuelle site erstellen
+  
+  loso_results = rf_pipeline$get_loso_predictions()
+  
+  site_results = rf_pipeline$evaluate(return_metric = TRUE) #metricen erstellen
+  
+  site_results$Site = site
+  results_rf_df = rbind(results_rf_df, site_results)
+  df_obvervedVSpred = rbind(df_obvervedVSpred, loso_results)
+  
+}}
+
+```
+
+
+
+
 
