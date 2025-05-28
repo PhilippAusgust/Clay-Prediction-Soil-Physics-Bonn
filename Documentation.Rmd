@@ -307,6 +307,27 @@ for(site in unique(df_transformed$Site)) {
 
 ```
 
+Wir können jetzt auch eine SVM trainieren 
+
+
+```{r, echo =TRUE}
+
+svm_pipeline = SVMPipeline_New$new(data = df_transformed,
+                                      target = target,
+                                      features = features)
+
+svm_pipeline$split(test_size = 0.15)
+
+svm_pipeline$train()
+
+svm_pipeline$predict()
+
+svm_pipeline$plot_results()
+
+svm_pipeline$evaluate()
+
+
+```
 
 
 

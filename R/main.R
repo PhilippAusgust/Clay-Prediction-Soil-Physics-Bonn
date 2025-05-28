@@ -20,7 +20,7 @@ if(PrepareNewDate){
 # ---------------------------------------------------------
 # Excel-Datei einlesen
 df <- read_excel(path)
-metainformation = read.csv("MetaInfo/MetaDataComplete.csv")
+metainformation = read.csv("Data/MetaDataComplete.csv")
 # 2. Datenbereinigung
 # ---------------------------------------------------------
 # Identifizieren von Standorten, die in den Daten, aber nicht in den Metainformationen vorhanden sind
@@ -190,7 +190,7 @@ for(site in unique(df_transformed$Site)){
   
   rf_pipeline$split(test_site = site, split_method = "LOSO") # aktuelle site aus dem training auslassen
   
-  rf_pipeline$train(mtry = NULL, cv_method = "repeatedcv", cv_folds = 5, cv_repeats = 5, implementation = "standard")  # modell trainieren
+  rf_pipeline$train(mtry = "efficient", cv_method = "repeatedcv", cv_folds = 3, cv_repeats = 3)  # modell trainieren
   
   rf_pipeline$predict() # vorhersage auf die aktuelle site erstellen
   
